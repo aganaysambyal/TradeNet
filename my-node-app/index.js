@@ -3,32 +3,37 @@ const cors = require("cors");
 const path = require("path");
 const bodyParser = require("body-parser");
 const jwt = require("jsonwebtoken");
-const multer = require("multer");
+
+const http = require('http');
 const mongoose = require("mongoose");
+const  {Server} = require("socket.io");
 const { ObjectId } = require("mongoose").Types;
 
 const app = express();
 const port = 4000;
 
-  const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, "uploads"),
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname));
-  },
-});
+  const multer = require("multer");
+  const storage = multer.memoryStorage();
+  const upload = multer({ storage });
 
-const upload = multer({ storage });
 
 
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(express.json());
+const httpServer = http.createServer(app)
+
+const io = new Server(httpServer, {
+  cors:{
+    origin: '*'
+  }
+})
+
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // MongoDB Connection
-mongoose.connect("mongodb://127.0.0.1:27017/test", {
+mongoose.connect("mongodb+srv://aganaysambyal:123@cluster1.itbg0z4.mongodb.net/", {
   useNewUrlParser: true,//ensures the connection string is passed successfully
   useUnifiedTopology: true,//Uses the new Server Discovery and Monitoring engine for better connection handling
 })
@@ -54,12 +59,19 @@ const Products = mongoose.model("Products", {
   addedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Users" }
 });
 
+const Message = mongoose.model("Message", {
+  productId: { type: mongoose.Schema.Types.ObjectId, ref: "Products" },
+  username: String,
+  msg: String,
+  timestamp: { type: Date, default: Date.now },
+});
+
+
 
 // Home Route
 app.get("/", (req, res) => res.send("Hello, World!"));
 
-// Get Product Details
-// Get Product Details
+
 app.get("/get-product/:id", async (req, res) => {
   try {
     const productId = req.params.id;
@@ -67,7 +79,6 @@ app.get("/get-product/:id", async (req, res) => {
       return res.status(400).json({ message: "Invalid Product ID" });
     }
 
-    // Populate 'addedBy' field to get the contact number
     let product = await Products.findById(productId).populate("addedBy", "contactNumber");
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
@@ -76,10 +87,9 @@ app.get("/get-product/:id", async (req, res) => {
     // Convert Mongoose document to a plain object
     product = product.toObject();
 
-    // Ensure contact details are always included
     product.contactDetails = product.addedBy?.contactNumber || "No contact details available";
 
-    // Remove price only for Lost & Found category
+   
     if (product.category === "Lost & Found") {
       delete product.price;
     }
@@ -137,41 +147,48 @@ app.post("/login", async (req, res) => {
 });
 
 //Add Product Route
-app.post("/add-product", upload.fields([{ name: 'pimage' }, { name: 'pimage2' }]), async (req, res) => {
+const { v2: cloudinary } = require('cloudinary');
+cloudinary.config({
+  cloud_name: 'your_cloud_name',
+  api_key: 'your_api_key',
+  api_secret: 'your_api_secret'
+});
+
+app.post("/add-product", upload.single('pimage'), async (req, res) => {
   try {
-    const { pname, pdesc, price, category, userId } = req.body;
+    const streamUpload = (fileBuffer) => {
+      return new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream((error, result) => {
+          if (error) return reject(error);
+          resolve(result);
+        });
+        stream.end(fileBuffer);
+      });
+    };
 
-    // Check if the primary image exists
-    if (!req.files.pimage) {
-      return res.status(400).json({ message: "Primary image is required" });
-    }
-
-    // Handle Lost & Found category (No price required)
-    const finalPrice = category === "Lost & Found" ? null : price;
-
-    const pimage = req.files.pimage[0].filename;
-    const pimage2 = req.files.pimage2 ? req.files.pimage2[0].filename : "";
+    const result = await streamUpload(req.file.buffer);
 
     const product = new Products({
-      pname,
-      pdesc,
-      price: finalPrice,  
-      category,
-      pimage,
-      pimage2,
-      addedBy: userId,
+      pname: req.body.pname,
+      pdesc: req.body.pdesc,
+      price: req.body.category === "Lost & Found" ? null : req.body.price,
+      category: req.body.category,
+      pimage: result.secure_url,
+      addedBy: req.body.userId,
     });
 
     await product.save();
     res.status(201).json({ message: "Product added successfully!" });
 
   } catch (error) {
-    console.error("Error in /add-product:", error);
+    console.error("Upload error:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
 
 
+
+//My products
 app.post('/my-products', async (req, res) => {
   try {
     const { userId } = req.body;
@@ -343,7 +360,60 @@ app.post("/unlike-product", async (req, res) => {
 });
 
 
+//Chat
+let messages = [];
+
+io.on('connection', (socket) => {
+  console.log('Socket Connected', socket.id);
+
+  socket.on('joinProductRoom', async (productId) => {
+    socket.join(productId);
+    console.log(`User joined room: ${productId}`);
+
+    // Fetch previous messages for this product from the database
+    const productMessages = await Message.find({ productId }).sort({ timestamp: 1 });
+    socket.emit('getMsg', productMessages); // Send previous messages to the user who joined
+  });
+
+  socket.on('sendMsg', async (data) => {
+    const newMessage = new Message({
+      productId: data.productId,
+      username: data.username,
+      msg: data.msg,
+    });
+
+    await newMessage.save(); // Save the message in the database
+
+    // Emit the new message to all users in the product's room
+    io.to(data.productId).emit('getMsg', await Message.find({ productId: data.productId }).sort({ timestamp: 1 }));
+  });
+
+  // Handle deleting a message
+  socket.on('deleteMsg', async (data) => {
+    await Message.deleteOne({ _id: data.msgId });
+
+    // Emit the updated messages to all users in the product's room
+    io.to(data.productId).emit('getMsg', await Message.find({ productId: data.productId }).sort({ timestamp: 1 }));
+  });
+
+  // Handle deleting all messages for a product
+  socket.on('deleteAllMsgs', async (productId) => {
+    await Message.deleteMany({ productId });
+
+    // Emit an empty list of messages to all users in the product's room
+    io.to(productId).emit('getMsg', []); // Send empty list to all users
+  });
+
+  socket.on('disconnect', () => {
+    console.log('Socket Disconnected', socket.id);
+  });
+});
 
 
 
-app.listen(port, () => console.log(`Server running on http://localhost:${port}`));
+
+
+
+httpServer.listen(port, () => {
+  console.log(`Server running on http://localhost:${port}`);
+});
