@@ -10,7 +10,7 @@ const  {Server} = require("socket.io");
 const { ObjectId } = require("mongoose").Types;
 
 const app = express();
-const port = 4000;
+const port = process.env.PORT || 4000;
 
   const multer = require("multer");
   const storage = multer.memoryStorage();
@@ -18,7 +18,11 @@ const port = 4000;
 
 
 
-app.use(cors());
+app.use(cors({
+  origin: "https://gregarious-peony-cae896.netlify.app", // your Netlify frontend URL
+  credentials: true
+}));
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(express.json());
@@ -149,12 +153,15 @@ app.post("/login", async (req, res) => {
 //Add Product Route
 const { v2: cloudinary } = require('cloudinary');
 cloudinary.config({
-  cloud_name: 'dwiaqstbbe',
+  cloud_name: 'dwiaqstbb',
   api_key: '332735778411648',
   api_secret: '0nS4B8qO0lA_-H9SEe2xdA4Exow'
 });
 
-app.post("/add-product", upload.single('pimage'), async (req, res) => {
+app.post("/add-product", upload.fields([
+  { name: 'pimage', maxCount: 1 },
+  { name: 'pimage2', maxCount: 1 }
+]), async (req, res) => {
   try {
     const streamUpload = (fileBuffer) => {
       return new Promise((resolve, reject) => {
@@ -166,14 +173,16 @@ app.post("/add-product", upload.single('pimage'), async (req, res) => {
       });
     };
 
-    const result = await streamUpload(req.file.buffer);
+    const result1 = await streamUpload(req.files.pimage[0].buffer);
+    const result2 = req.files.pimage2 ? await streamUpload(req.files.pimage2[0].buffer) : null;
 
     const product = new Products({
       pname: req.body.pname,
       pdesc: req.body.pdesc,
       price: req.body.category === "Lost & Found" ? null : req.body.price,
       category: req.body.category,
-      pimage: result.secure_url,
+      pimage: result1.secure_url,
+      pimage2: result2 ? result2.secure_url : null,
       addedBy: req.body.userId,
     });
 
@@ -185,6 +194,7 @@ app.post("/add-product", upload.single('pimage'), async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
+
 
 
 
