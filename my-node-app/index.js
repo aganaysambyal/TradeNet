@@ -149,9 +149,9 @@ app.post("/login", async (req, res) => {
 //Add Product Route
 const { v2: cloudinary } = require('cloudinary');
 cloudinary.config({
-  cloud_name: 'your_cloud_name',
-  api_key: 'your_api_key',
-  api_secret: 'your_api_secret'
+  cloud_name: 'dwiaqstbbe',
+  api_key: '332735778411648',
+  api_secret: '0nS4B8qO0lA_-H9SEe2xdA4Exow'
 });
 
 app.post("/add-product", upload.single('pimage'), async (req, res) => {
