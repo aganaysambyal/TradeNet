@@ -19,9 +19,9 @@ const port = process.env.PORT || 4000;
 
 
 app.use(cors({
-  origin: "https://gregarious-peony-cae896.netlify.app", // your Netlify frontend URL
-  credentials: true
+  origin: "*"
 }));
+
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
