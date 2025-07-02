@@ -14,7 +14,8 @@ const port = process.env.PORT || 4000;
 
   const multer = require("multer");
   const storage = multer.memoryStorage();
-  sudo delete web service TradeNet-1
+  const upload = multer({ storage: multer.memoryStorage() });
+
 
 
 
