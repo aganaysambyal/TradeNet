@@ -40,7 +40,7 @@ Video:
 Clone the repository:
 ```bash
 git clone https://github.com/yourusername/tradenet.git
-cd tradenet
+cd
 npm install
 cd client && npm install
 npm run dev
