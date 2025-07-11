@@ -1,0 +1,95 @@
+.signup-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background-color: #0d0d0d; 
+    background-image: url('https://www.transparenttextures.com/patterns/black-linen.png'); 
+    background-size: cover;
+    background-position: center;
+}
+
+.signup-card {
+    width: 100%;
+    max-width: 400px;
+    padding: 30px;
+    border: none;
+    border-radius: 15px;
+    box-shadow: 0 8px 20px rgba(255, 255, 255, 0.1);
+    background: linear-gradient(135deg, rgba(30, 30, 30, 0.95), rgba(50, 50, 50, 0.95));
+}
+
+.signup-card .card-title {
+    font-size: 28px;
+    font-weight: bold;
+    color: #ffffff; 
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+
+.signup-card label {
+    display: block;
+    font-size: 16px;
+    font-weight: 500;
+    color: #ffffff; 
+    text-align: left; 
+    margin-bottom: 5px;
+}
+
+
+.signup-card .input-group {
+    margin-bottom: 15px;
+}
+
+.signup-card .form-control {
+    width: 100%;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #ffffff; 
+    background-color: rgba(255, 255, 255, 0.1); 
+    color: #ffffff;
+    font-size: 16px;
+}
+
+.signup-card .form-control::placeholder {
+    color: rgba(255, 255, 255, 0.7); 
+}
+
+.signup-card .form-control:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 8px rgba(0, 123, 255, 0.5);
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.signup-card .btn-primary {
+    background: linear-gradient(135deg, #007bff, #0056b3);
+    border: none;
+    padding: 12px;
+    font-size: 16px;
+    border-radius: 8px;
+    transition: all 0.3s ease-in-out;
+    color: white;
+    width: 100%;
+    margin-top: 15px;
+}
+
+.signup-card .btn-primary:hover {
+    background: linear-gradient(135deg, #0056b3, #00408a);
+    transform: scale(1.05);
+}
+
+.signup-card .text-center {
+    margin-top: 15px;
+    color: #ffffff; 
+}
+
+.signup-card .btn-link {
+    color: #007bff;
+    text-decoration: none;
+    font-size: 14px;
+}
+
+.signup-card .btn-link:hover {
+    text-decoration: underline;
+}
