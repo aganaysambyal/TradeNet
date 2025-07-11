@@ -3,37 +3,65 @@ const cors = require("cors");
 const path = require("path");
 const bodyParser = require("body-parser");
 const jwt = require("jsonwebtoken");
-const multer = require("multer");
+
 const http = require('http');
 const mongoose = require("mongoose");
 const  {Server} = require("socket.io");
 const { ObjectId } = require("mongoose").Types;
 
 const app = express();
-const port = 4000;
+const port = process.env.PORT || 4000;
 
-  const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, "uploads"),
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname));
+  const multer = require("multer");
+  const storage = multer.memoryStorage();
+  const upload = multer({ storage: multer.memoryStorage() });
+
+
+
+
+
+
+app.use(cors({
+  origin: function (origin, callback) {
+    const allowedOrigins = [
+      'https://juit-tradenet.netlify.app',
+      'https://cool-blancmange-0b4c8b.netlify.app'
+    ];
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
   },
-});
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  credentials: true
+}));
 
-const upload = multer({ storage });
+// Handle preflight requests explicitly
+app.options('*', cors());
 
 
-app.use(cors());
+
+
+
+
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(express.json());
 const httpServer = http.createServer(app)
 
 const io = new Server(httpServer, {
-  cors:{
-    origin: '*'
+  cors: {
+    origin: [
+      'https://juit-tradenet.netlify.app',
+      'https://cool-blancmange-0b4c8b.netlify.app'
+    ],
+    methods: ['GET', 'POST'],
+    credentials: true
   }
-})
+});
+
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
@@ -84,7 +112,6 @@ app.get("/get-product/:id", async (req, res) => {
       return res.status(400).json({ message: "Invalid Product ID" });
     }
 
-    // Populate 'addedBy' field to get the contact number
     let product = await Products.findById(productId).populate("addedBy", "contactNumber");
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
@@ -93,10 +120,9 @@ app.get("/get-product/:id", async (req, res) => {
     // Convert Mongoose document to a plain object
     product = product.toObject();
 
-    // Ensure contact details are always included
     product.contactDetails = product.addedBy?.contactNumber || "No contact details available";
 
-    // Remove price only for Lost & Found category
+   
     if (product.category === "Lost & Found") {
       delete product.price;
     }
@@ -154,41 +180,54 @@ app.post("/login", async (req, res) => {
 });
 
 //Add Product Route
-app.post("/add-product", upload.fields([{ name: 'pimage' }, { name: 'pimage2' }]), async (req, res) => {
+const { v2: cloudinary } = require('cloudinary');
+cloudinary.config({
+  cloud_name: 'dwiaqstbb',
+  api_key: '332735778411648',
+  api_secret: '0nS4B8qO0lA_-H9SEe2xdA4Exow'
+});
+
+app.post("/add-product", upload.fields([
+  { name: 'pimage', maxCount: 1 },
+  { name: 'pimage2', maxCount: 1 }
+]), async (req, res) => {
   try {
-    const { pname, pdesc, price, category, userId } = req.body;
+    const streamUpload = (fileBuffer) => {
+      return new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream((error, result) => {
+          if (error) return reject(error);
+          resolve(result);
+        });
+        stream.end(fileBuffer);
+      });
+    };
 
-    // Check if the primary image exists
-    if (!req.files.pimage) {
-      return res.status(400).json({ message: "Primary image is required" });
-    }
-
-    // Handle Lost & Found category (No price required)
-    const finalPrice = category === "Lost & Found" ? null : price;
-
-    const pimage = req.files.pimage[0].filename;
-    const pimage2 = req.files.pimage2 ? req.files.pimage2[0].filename : "";
+    const result1 = await streamUpload(req.files.pimage[0].buffer);
+    const result2 = req.files.pimage2 ? await streamUpload(req.files.pimage2[0].buffer) : null;
 
     const product = new Products({
-      pname,
-      pdesc,
-      price: finalPrice,  
-      category,
-      pimage,
-      pimage2,
-      addedBy: userId,
+      pname: req.body.pname,
+      pdesc: req.body.pdesc,
+      price: req.body.category === "Lost & Found" ? null : req.body.price,
+      category: req.body.category,
+      pimage: result1.secure_url,
+      pimage2: result2 ? result2.secure_url : null,
+      addedBy: req.body.userId,
     });
 
     await product.save();
     res.status(201).json({ message: "Product added successfully!" });
 
   } catch (error) {
-    console.error("Error in /add-product:", error);
+    console.error("Upload error:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
 
 
+
+
+//My products
 app.post('/my-products', async (req, res) => {
   try {
     const { userId } = req.body;
@@ -359,6 +398,8 @@ app.post("/unlike-product", async (req, res) => {
   }
 });
 
+
+//Chat
 let messages = [];
 
 io.on('connection', (socket) => {
@@ -406,10 +447,6 @@ io.on('connection', (socket) => {
     console.log('Socket Disconnected', socket.id);
   });
 });
-
-
-
-
 
 
 httpServer.listen(port, () => {
